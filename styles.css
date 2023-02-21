@@ -1,0 +1,147 @@
+body.ui.container {
+  display: flex;
+  flex-direction: column;
+  max-width: 1024px;
+  min-width: initial;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+h2 {
+  margin-bottom: 0;
+  margin-right: auto;
+}
+
+main {
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+output {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  color: white;
+  font-weight: bold;
+  font-family: sans-serif;
+  filter: drop-shadow(0 1px 1px rgba(169, 169, 169, 0.9));
+}
+
+
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  margin-bottom: auto;
+}
+
+.ui.button { margin: 0.25em; }
+
+.ui.sub.header {
+  line-height: 1;
+  margin-top: -0.5rem;
+}
+.ui.sub.header > .ui.dropdown.selection { display:block }
+
+#effects {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  align-content: baseline;
+  flex-wrap: wrap;
+  max-height: 7rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#source {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #ccc;
+}
+
+#source-image {
+  overflow: hidden;
+  width: 0;
+  height: 0;
+}
+
+#webar {
+  line-height: 0;
+}
+
+#webar > canvas {
+  max-height: 100%;
+}
+
+#webar:empty {
+  height: calc(100vh - 200px);
+}
+
+#webar:empty ~ #sound {
+  display: none;
+}
+
+#webar:not(:empty) ~ #source {
+  opacity: 0;
+}
+
+@keyframes blinker {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
+
+#rec {
+  position: absolute;
+  z-index: 1;
+  top: 1.5rem;
+  left: 1rem;
+  color: red;
+  font-weight: bold;
+  font-family: sans-serif;
+  opacity: 0.8;
+}
+
+#rec > i {
+  animation: blinker 1.5s cubic-bezier(.5, 0, 1, 1) infinite alternate;
+}
+
+#fps {
+  position: absolute;
+  z-index: 1.5;
+  bottom: 1rem;
+  left: 1rem;
+  color: white;
+  font-weight: bold;
+  font-family: sans-serif;
+  filter: drop-shadow(0 1px 1px rgba(169, 169, 169, 0.75));
+}
+
+#sound {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+}
+
+#screenshot {
+  margin-left: 0;
+}

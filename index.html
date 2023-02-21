@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Banuba SDK Web AR demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.6/dist/semantic.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fomantic-ui@2.8.6/dist/semantic.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="ui container">
+    <header>
+      <h2>Select an effect:</h2>
+      <label class="ui sub header">
+        FPS lock
+        <select class="ui dropdown">
+          <option value="30" selected>30</option>
+          <option value="60">60</option>
+          <option value="-1">🔥 Unlocked 🔥</option>
+        </select>
+      </label>
+      <button class="ui button" id="reset">Reset</button>
+      <div id="effects"></div>
+    </header>
+
+    <main>
+      <span id="rec" hidden>
+        <i class="circle icon"></i>
+        REC
+      </span>
+      <span id="fps">
+        Webcam FPS: <span id="cam"></span>
+        </br>
+        Processing FPS: <span id="processing"></span>
+        </br>
+        Render FPS: <span id="render"></span>
+      </span>
+      <div id="webar"></div>
+      <div id="source">
+        <button class="ui button" id="source-webcam">Webcam</button>
+        <span>or</span>
+        <label class="ui button">
+          <input type="file" id="source-image" accept="image/*">Upload a photo</button>
+        </label>
+        <span>or</span>
+        <label class="ui button">
+          <input type="file" id="source-video" accept="video/*">Upload a Video</button>
+        </label>
+
+      </div>
+      <button class="ui icon button" id="sound">
+        <i class="volume icon"></i>
+      </button>
+      <output></output>
+    </main>
+
+    <footer>
+      <button class="ui right labeled icon button" id="screenshot">
+        <i class="file image icon"></i>
+        Screenshot
+      </button>
+
+      <div class="ui buttons">
+        <button class="ui right labeled icon button" data-content="Start video recording" id="start">
+          <i class="play icon"></i>
+          Video recording
+        </button>
+        <button class="ui icon button" data-content="Pause video recording" id="pause">
+          <i class="pause icon"></i>
+        </button>
+        <button class="ui icon button" data-content="Resume video recording" id="resume">
+          <i class="step forward icon"></i>
+        </button>
+        <button class="ui icon button" data-content="Stop video recording" id="stop">
+          <i class="stop icon"></i>
+        </button>
+      </div>
+    </footer>
+
+    <script src="BanubaClientToken.js"></script>
+    <script type="module">
+      import { Effect, Webcam, Image, Player, Module, VideoRecorder, ImageCapture, Dom, MediaStream, Video } from "https://cdn.jsdelivr.net/npm/@banuba/webar/dist/BanubaSDK.browser.esm.min.js"
+      
+
+      const effects = [
+        "Ruler",
+        "BackgroundPicture",
+        "BackgroundBeauty",
+        "BigPinkGlasses",
+        "glasses_Banuba",
+        "Hipster3",
+        "Rorschach",
+        "Hair_recoloring"
+      ]
+
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+      /** @see https://docs.banuba.com/face-ar-sdk-v1/web/web_known_issues#effect-animations-are-delayed-on-safari for details */
+      if (isSafari) navigator.serviceWorker.register("./range-requests.sw.js")
+
+      ;(async () => {
+        let lock = $("select")[0].value
+        let source
+
+        const [player, modules] = await Promise.all([
+          Player.create({
+            clientToken: window.BANUBA_CLIENT_TOKEN,
+            proxyVideoRequestsTo: isSafari ? "___range-requests___/" : null,
+          }),
+          // Find more about available modules:
+          // https://docs.banuba.com/face-ar-sdk-v1/generated/typedoc/classes/Module.html
+          Module.preload(["face_tracker", "background", "hair"].map(m => `https://cdn.jsdelivr.net/npm/@banuba/webar/dist/modules/${m}.zip`)),
+        ])
+
+        await player.addModule(...modules)
+
+        //#region fps lock
+        $("select").dropdown({
+          onChange: (fps) => {
+            lock = fps
+            if (source) player.use(source, { fps: lock })
+          }
+        })
+        //#endregion
+        
+        //#region source
+        $("#source-image").on("change", e => {
+          source?.stop?.()
+          source = new Image(e.target.files[0])
+          player.use(source, { fps: lock })
+          Dom.render(player, "#webar")
+        })
+        $("#source-webcam").on("click", e => {
+          source?.stop?.()
+          source = new Webcam()
+          player.use(source, { fps: lock })
+          Dom.render(player, "#webar")
+        })
+        $("#source-video").on("change", e => {
+          source?.stop?.()
+          source = new Video(e.target.files[0])
+          player.use(source, { fps: lock })
+          Dom.render(player, "#webar")
+        })
+
+
+
+        //#endregion
+
+        //#region fps count
+        const fps = {
+          cam: 0,
+          processing: 0,
+          render: 0,
+        }
+        player.addEventListener("framereceived", () => fps.cam++)
+        player.addEventListener("frameprocessed", ({ detail }) => fps.processing = 1. / detail.averagedDuration)
+        player.addEventListener("framerendered", () => fps.render++)
+
+        setInterval(() => {
+          Object
+                  .entries(fps)
+                  .forEach(([name, value]) => {
+                    fps[name] = 0
+                    $(`#${name}`).text(value.toFixed(1))
+                  })
+        }, 1000)
+        //#endregion
+
+        //#region effects
+        $.each(effects, async (idx, effectName) => {
+          const btn = $(
+            `<button class="ui primary button elastic loading">
+              ${effectName}
+            </button>`
+          )
+          .prependTo("#effects")
+
+          const effect = await Effect.preload(`effects/${effectName}.zip`)
+
+          btn.on("click", () => player.applyEffect(effect))
+          btn.removeClass("loading")
+        })
+        $("#reset").on("click", () => player.clearEffect())
+        //#endregion
+
+
+        //#region ruler
+        player.addEventListener("effectactivated", ({ detail: effect }) => {
+          const isRuler = effect.scene().getName() === "ruler"
+
+          player.removeEventListener("framedata", onFrameData)
+          
+          if (isRuler) player.addEventListener("framedata", onFrameData)
+
+          $("output").text("")
+        })
+
+        function onFrameData({ detail: frameData }) {
+          const face = frameData
+            .getFrxRecognitionResult()
+            ?.getFaces()
+            .get(0)
+            .hasFace()
+
+          if (!face) return
+
+          const distance = frameData.getRuler()
+
+          $("output").text(`Distance: ${distance.toFixed(2)}`)
+        }
+        //#endreegion
+
+        //#region volume
+        let volume = 0 // initial volume state (muted by default)
+
+        $("#sound > i").toggleClass(volume ? "up" : "mute")
+        $("#sound").on("click", () => player.setVolume(volume = +!volume)) // toggle 0 - 1
+
+        player.addEventListener("volumechange", () => $("#sound > i").toggleClass("up mute"))
+        //#endregion
+
+        //#region image capture
+        const capture = new ImageCapture(player)
+
+        $("#screenshot").on("click", async () => $("body").toast({
+          title: "Screenshot is ready",
+          message: `Check the <a href="${URL.createObjectURL(await capture.takePhoto())}" target="_blank">link</a>`,
+          class: { toast: "ui info message" },
+        }))
+        //#endregion
+
+        //#region video recording
+        let recorder
+
+        // lazy recorder initialization cuz it eats fps :(
+        const getRecorder = () => {
+          if (recorder) return recorder
+
+          recorder = new VideoRecorder(player)
+
+          recorder.addEventListener("start", () => $("#rec").show())
+          recorder.addEventListener("pause", () => $("#rec").hide())
+          recorder.addEventListener("resume", () => $("#rec").show())
+          recorder.addEventListener("stop", () => $("#rec").hide())
+
+          return recorder
+        }
+
+        $("#start").on("click", () => getRecorder().start())
+        $("#pause").on("click", () => getRecorder().pause())
+        $("#resume").on("click", () => getRecorder().resume())
+        $("#stop").on("click", async () => $("body").toast({
+          title: "Video record is ready",
+          message: `Check the <a href="${URL.createObjectURL(await getRecorder().stop())}" target="_blank">link</a>`,
+          class: { toast: "ui info message" },
+        }))
+
+        //#endregion
+      })()
+    </script>
+</body>
+
+</html>
